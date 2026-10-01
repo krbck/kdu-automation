@@ -13,6 +13,7 @@ const { ExpressAdapter } = require('@bull-board/express');
 const app = express();
 const port = process.env.PORT || 3000;
 app.set('view engine', 'ejs');
+app.use(express.urlencoded({ extended: true }));
 
 // 2. Initialize Firebase Admin
 // Make sure to download your service account JSON and set its path in .env
@@ -205,26 +206,57 @@ setupFirebaseListener();
 app.get('/dashboard', async (req, res) => {
   if (!getApps().length) return res.send('Firebase not initialized');
   const db = getDatabase();
-  
+
   try {
     const [tasksSnap, clientsSnap, memSnap] = await Promise.all([
       db.ref('tasks').orderByChild('processed').equalTo(true).limitToLast(100).once('value'),
       db.ref('clients').once('value'),
       db.ref('memories').once('value')
     ]);
-    
+
     const tasks = tasksSnap.val() || {};
     const clients = clientsSnap.val() || {};
     const memories = memSnap.val() || {};
-    
+
     // Sort tasks newest first
     const tasksArray = Object.keys(tasks).map(k => ({ id: k, ...tasks[k] })).reverse();
     const memoriesArray = Object.keys(memories).map(k => ({ id: k, ...memories[k] }));
-    
+
     res.render('dashboard', { tasks: tasksArray, clients, memories: memoriesArray });
-  } catch(e) {
+  } catch (e) {
     res.send('Error loading dashboard: ' + e.message);
   }
+});
+
+// 7. Handle Feedback (Memories Creation)
+app.post('/dashboard/feedback', async (req, res) => {
+  const { taskId, rule, correctedCategory, originalTitle, originalBody } = req.body;
+  if (!taskId || !rule) return res.redirect('/dashboard');
+  
+  try {
+    const db = getDatabase();
+    
+    // 1. Save the new memory rule
+    await db.ref('memories').push({
+      rule: rule,
+      correctedCategory: correctedCategory || 'Genel',
+      createdAt: Date.now(),
+      createdBy: 'Admin Dashboard'
+    });
+    
+    // 2. Re-enqueue the task so the AI processes it again with the NEW rule!
+    await taskQueue.add('categorize-task', {
+      taskId,
+      title: originalTitle,
+      body: originalBody
+    }, { attempts: 1 });
+    
+    console.log(`Feedback added and Task ${taskId} re-queued!`);
+  } catch (error) {
+    console.error('Feedback error:', error);
+  }
+  
+  res.redirect('/dashboard');
 });
 
 // Start the Express Server
