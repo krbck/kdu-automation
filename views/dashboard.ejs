@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>KDU Automation Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; }
+    .badge-category { font-size: 0.85em; }
+  </style>
+</head>
+<body>
+<div class="container my-5">
+  <h1 class="mb-4">KDU Automation Dashboard</h1>
+
+  <!-- Memories Section -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">🧠 Aktif Kurallar (Memories / RLHF)</h5>
+    </div>
+    <div class="card-body">
+      <% if (memories.length === 0) { %>
+        <p class="text-muted">Henüz hiç kural/hafıza yok.</p>
+      <% } else { %>
+        <ul class="list-group">
+          <% memories.forEach(mem => { %>
+            <li class="list-group-item">
+              <strong>Kural:</strong> <%= mem.rule %><br>
+              <small class="text-muted">Sonuç Kategori: <%= mem.correctedCategory %></small>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Tasks Section -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-dark text-white">
+      <h5 class="mb-0">✅ Son İşlenen Görevler</h5>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Müşteri</th>
+            <th>Kategori</th>
+            <th>Görev Özeti & Başlık</th>
+            <th>Aciliyet</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (tasks.length === 0) { %>
+            <tr><td colspan="4" class="text-center text-muted py-4">Henüz işlenmiş görev yok.</td></tr>
+          <% } %>
+          <% tasks.forEach(task => { %>
+            <tr>
+              <td><strong><%= task.clientName || 'Bilinmiyor' %></strong></td>
+              <td><span class="badge bg-secondary badge-category"><%= task.category || 'Yok' %></span></td>
+              <td>
+                <div class="fw-bold text-dark"><%= task.standardisedTitle || task.title %></div>
+                <div class="text-muted small"><%= task.summary || task.body %></div>
+                <div class="text-muted small" style="font-size:0.7em;">Orijinal Text: <%= task.title %> - <%= task.body %></div>
+              </td>
+              <td>
+                <% if(task.urgency === 'Yüksek') { %>
+                  <span class="badge bg-danger"><%= task.urgency %></span>
+                <% } else if(task.urgency === 'Orta') { %>
+                  <span class="badge bg-warning text-dark"><%= task.urgency %></span>
+                <% } else { %>
+                  <span class="badge bg-info"><%= task.urgency %></span>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

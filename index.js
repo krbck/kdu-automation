@@ -12,6 +12,7 @@ const { ExpressAdapter } = require('@bull-board/express');
 // 1. Initialize Express
 const app = express();
 const port = process.env.PORT || 3000;
+app.set('view engine', 'ejs');
 
 // 2. Initialize Firebase Admin
 // Make sure to download your service account JSON and set its path in .env
@@ -39,20 +40,20 @@ const taskQueue = new Queue('task-categorization-queue', { connection: redisOpti
 // Create the Worker (This processes the jobs)
 const worker = new Worker('task-categorization-queue', async (job) => {
   console.log(`Processing job ${job.id} for task: ${job.data.taskId}`);
-  
+
   const { taskId, title, body } = job.data;
   const db = getDatabase();
-  
+
   try {
     // Step 1. Fetch cached clients and memories
     const [clientsSnapshot, memoriesSnapshot] = await Promise.all([
       db.ref('clients').once('value'),
       db.ref('memories').once('value')
     ]);
-    
+
     const clientsData = clientsSnapshot.val() || {};
     const memoriesData = memoriesSnapshot.val() || {};
-    
+
     // Format clients for the prompt
     const clientsList = Object.keys(clientsData).map(id => {
       return { id, name: clientsData[id].name };
@@ -88,7 +89,7 @@ const worker = new Worker('task-categorization-queue', async (job) => {
         'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-reasoner',
         messages: [{ role: 'system', content: systemPrompt }],
         temperature: 0.1
       })
@@ -100,7 +101,7 @@ const worker = new Worker('task-categorization-queue', async (job) => {
 
     const aiData = await response.json();
     const aiContent = aiData.choices[0].message.content;
-    
+
     // Parse the JSON (handle possible markdown formatting returned by AI)
     const cleanJsonStr = aiContent.replace(/```json/g, '').replace(/```/g, '').trim();
     const structuredData = JSON.parse(cleanJsonStr);
@@ -108,7 +109,7 @@ const worker = new Worker('task-categorization-queue', async (job) => {
     // Step 3. Update Firebase RTDB with new category, client info, and assign task to client
     let clientId = structuredData.matchedClientId;
     let clientName = structuredData.clientName;
-    
+
     // If no client matched, create a new one dynamically
     if (!clientId || clientId === 'null' || clientId === '') {
       const newClientRef = db.ref('clients').push();
@@ -142,7 +143,7 @@ const worker = new Worker('task-categorization-queue', async (job) => {
     console.error(`Error processing job ${job.id}:`, error);
     throw error; // Throwing error tells BullMQ to retry the job
   }
-}, { 
+}, {
   connection: redisOptions,
   concurrency: 2 // Process maximum 2 tasks concurrently to avoid hitting rate limits
 });
@@ -173,7 +174,7 @@ const setupFirebaseListener = () => {
   const tasksRef = db.ref('tasks');
 
   console.log('Starting Firebase RTDB listener for new tasks...');
-  
+
   // Example: Listening for newly added tasks
   // To avoid fetching all historical data at once initially, we can filter by time
   // OR just process them but rely on BullMQ to queue them safely.
@@ -184,7 +185,7 @@ const setupFirebaseListener = () => {
     // Check if task is already processed to avoid infinite loops
     if (task && !task.processed) {
       console.log(`New unprocessed task detected: ${taskId}`);
-      
+
       // Enqueue the task safely
       await taskQueue.add('categorize-task', {
         taskId,
@@ -200,8 +201,35 @@ const setupFirebaseListener = () => {
 
 setupFirebaseListener();
 
+// 6. Web Dashboard Route
+app.get('/dashboard', async (req, res) => {
+  if (!getApps().length) return res.send('Firebase not initialized');
+  const db = getDatabase();
+  
+  try {
+    const [tasksSnap, clientsSnap, memSnap] = await Promise.all([
+      db.ref('tasks').orderByChild('processed').equalTo(true).limitToLast(100).once('value'),
+      db.ref('clients').once('value'),
+      db.ref('memories').once('value')
+    ]);
+    
+    const tasks = tasksSnap.val() || {};
+    const clients = clientsSnap.val() || {};
+    const memories = memSnap.val() || {};
+    
+    // Sort tasks newest first
+    const tasksArray = Object.keys(tasks).map(k => ({ id: k, ...tasks[k] })).reverse();
+    const memoriesArray = Object.keys(memories).map(k => ({ id: k, ...memories[k] }));
+    
+    res.render('dashboard', { tasks: tasksArray, clients, memories: memoriesArray });
+  } catch(e) {
+    res.send('Error loading dashboard: ' + e.message);
+  }
+});
+
 // Start the Express Server
 app.listen(port, () => {
   console.log(`KDU Automation App running on port ${port}`);
   console.log(`BullMQ Dashboard available at: http://localhost:${port}/admin/queues`);
+  console.log(`Admin Dashboard available at: http://localhost:${port}/dashboard`);
 });
