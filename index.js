@@ -248,10 +248,10 @@ app.post('/dashboard/feedback', async (req, res) => {
   try {
     const db = getDatabase();
     
-    // Re-enqueue the task with user feedback
+    // Re-enqueue the task with user feedback and highest priority
     await taskQueue.add('categorize-task', {
       taskId, title: originalTitle, body: originalBody, userFeedback
-    }, { attempts: 1 });
+    }, { attempts: 1, priority: 1 });
     
     // Mark as reprocessing so UI updates
     await db.ref(`tasks/${taskId}`).update({ status: 'reprocessing', processed: null });
