@@ -291,6 +291,15 @@ app.post('/dashboard/memory/delete', async (req, res) => {
   res.redirect('/dashboard');
 });
 
+// 10. Archive Task (Hide from processed list)
+app.post('/dashboard/task/archive', async (req, res) => {
+  const { taskId } = req.body;
+  if (taskId) {
+    await getDatabase().ref(`tasks/${taskId}`).update({ processed: null, status: 'archived' });
+  }
+  res.redirect('/dashboard');
+});
+
 // Start the Express Server
 app.listen(port, () => {
   console.log(`KDU Automation App running on port ${port}`);

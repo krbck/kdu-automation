@@ -139,9 +139,15 @@
                 <% } %>
               </td>
               <td>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#feedbackModal<%= task.id %>">
-                  AI'a Yanlışı Söyle
-                </button>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#feedbackModal<%= task.id %>">
+                    AI'a Yanlışı Söyle
+                  </button>
+                  <form action="/dashboard/task/archive" method="POST" style="margin: 0;">
+                    <input type="hidden" name="taskId" value="<%= task.id %>">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Listeden Gizle">Gizle</button>
+                  </form>
+                </div>
               </td>
             </tr>
 
