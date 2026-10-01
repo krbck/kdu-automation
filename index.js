@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
-const admin = require('firebase-admin');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getDatabase } = require('firebase-admin/database');
 const { Queue, Worker } = require('bullmq');
 const { createBullBoard } = require('@bull-board/api');
 const { BullMQAdapter } = require('@bull-board/api/bullMQAdapter');
@@ -14,8 +15,8 @@ const port = process.env.PORT || 3000;
 // Make sure to download your service account JSON and set its path in .env
 try {
   const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './serviceAccountKey.json');
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+  initializeApp({
+    credential: cert(serviceAccount),
     databaseURL: process.env.FIREBASE_DATABASE_URL
   });
   console.log('Firebase Admin initialized.');
@@ -38,7 +39,7 @@ const worker = new Worker('task-categorization-queue', async (job) => {
   console.log(`Processing job ${job.id} for task: ${job.data.taskId}`);
   
   const { taskId, title, body } = job.data;
-  const db = admin.database();
+  const db = getDatabase();
   
   try {
     // Step 1. Fetch cached clients
@@ -133,8 +134,8 @@ app.use('/admin/queues', serverAdapter.getRouter());
 
 // 5. Firebase Listener (Event-driven scraping)
 const setupFirebaseListener = () => {
-  if (!admin.apps.length) return;
-  const db = admin.database();
+  if (!getApps().length) return;
+  const db = getDatabase();
   const tasksRef = db.ref('tasks');
 
   console.log('Starting Firebase RTDB listener for new tasks...');
