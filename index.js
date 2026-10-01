@@ -202,8 +202,8 @@ const setupFirebaseListener = () => {
     const task = snapshot.val();
     const taskId = snapshot.key;
 
-    // Check if task is already processed to avoid infinite loops
-    if (task && !task.processed) {
+    // Check if task is already processed, archived, or awaiting approval to avoid infinite loops
+    if (task && !task.processed && task.status !== 'archived' && task.status !== 'awaiting_approval') {
       console.log(`New unprocessed task detected: ${taskId}`);
 
       // Enqueue the task safely, using jobId to prevent duplicates!
