@@ -105,13 +105,13 @@
       <h5 class="mb-0">✅ Son İşlenen Görevler (Canlı)</h5>
     </div>
     <div class="card-body p-0">
-      <table class="table table-hover table-dark mb-0">
+      <table class="table table-hover table-dark mb-0" id="tasksTable">
         <thead>
           <tr>
-            <th>Müşteri</th>
-            <th>Kategori</th>
-            <th>Görev Özeti & Başlık</th>
-            <th>Aciliyet</th>
+            <th style="cursor:pointer;" onclick="sortTable('tasksTable', 0, 'string')">Müşteri ↕️</th>
+            <th style="cursor:pointer;" onclick="sortTable('tasksTable', 1, 'string')">Kategori ↕️</th>
+            <th style="cursor:pointer;" onclick="sortTable('tasksTable', 2, 'string')">Görev Özeti & Başlık ↕️</th>
+            <th style="cursor:pointer;" onclick="sortTable('tasksTable', 3, 'urgency')">Aciliyet ↕️</th>
             <th>İşlem</th>
           </tr>
         </thead>
@@ -220,6 +220,36 @@
       window.location.reload();
     }
   }, 10000);
+
+  // Table Sorting Logic
+  function sortTable(tableId, colIndex, type) {
+    const table = document.getElementById(tableId);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    // Toggle sort direction
+    const th = table.querySelectorAll('th')[colIndex];
+    const isAsc = th.dataset.sort === 'asc';
+    th.dataset.sort = isAsc ? 'desc' : 'asc';
+    
+    const urgencyWeight = { 'Düşük': 1, 'Orta': 2, 'Yüksek': 3 };
+
+    rows.sort((a, b) => {
+      const aText = a.cells[colIndex].innerText.trim();
+      const bText = b.cells[colIndex].innerText.trim();
+
+      if (type === 'urgency') {
+        const aW = urgencyWeight[aText] || 0;
+        const bW = urgencyWeight[bText] || 0;
+        return isAsc ? aW - bW : bW - aW;
+      } else {
+        return isAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+      }
+    });
+
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+  }
 </script>
 </body>
 </html>
