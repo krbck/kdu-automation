@@ -116,18 +116,18 @@
                 <div class="text-info small fst-italic"><%= task.learnedRule || 'Kural belirtilmemiş' %></div>
               </td>
               <td>
-                <div class="d-flex flex-column gap-2">
-                  <form action="/dashboard/approve" method="POST" style="margin: 0;">
+                <div class="d-flex gap-2 justify-content-center">
+                  <form action="/dashboard/approve" method="POST" style="margin: 0;" title="Kuralı Onayla & Görevi Bitir">
                     <input type="hidden" name="taskId" value="<%= task.id %>">
                     <input type="hidden" name="rule" value="<%= task.learnedRule || '' %>">
                     <input type="hidden" name="category" value="<%= task.category || 'Genel' %>">
                     <input type="hidden" name="clientId" value="<%= task.clientId || '' %>">
-                    <button type="submit" class="btn btn-sm btn-success w-100">Kuralı Onayla & Görevi Bitir</button>
+                    <button type="submit" class="btn btn-sm btn-success">✔️</button>
                   </form>
-                  <form action="/dashboard/reject" method="POST" style="margin: 0;">
+                  <form action="/dashboard/reject" method="POST" style="margin: 0;" title="Kuralı Reddet & Sadece Görevi Bitir">
                     <input type="hidden" name="taskId" value="<%= task.id %>">
                     <input type="hidden" name="clientId" value="<%= task.clientId || '' %>">
-                    <button type="submit" class="btn btn-sm btn-outline-danger w-100">Kuralı Reddet & Sadece Bitir</button>
+                    <button type="submit" class="btn btn-sm btn-outline-danger">❌</button>
                   </form>
                 </div>
               </td>
