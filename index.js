@@ -242,15 +242,17 @@ app.get('/dashboard', async (req, res) => {
 
 // 7. Handle Feedback (Send back to AI)
 app.post('/dashboard/feedback', async (req, res) => {
-  const { taskId, userFeedback, originalTitle, originalBody } = req.body;
+  const { taskId, userFeedback, originalTitle, originalBody, expectedCategory, expectedUrgency } = req.body;
   if (!taskId || !userFeedback) return res.redirect('/dashboard');
   
   try {
     const db = getDatabase();
     
+    const combinedFeedback = `Kullanıcı Notu: ${userFeedback}\nBeklenen Kategori: ${expectedCategory}\nBeklenen Aciliyet: ${expectedUrgency}`;
+    
     // Re-enqueue the task with user feedback and highest priority
     await taskQueue.add('categorize-task', {
-      taskId, title: originalTitle, body: originalBody, userFeedback
+      taskId, title: originalTitle, body: originalBody, userFeedback: combinedFeedback
     }, { attempts: 1, priority: 1 });
     
     // Mark as reprocessing so UI updates
