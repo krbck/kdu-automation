@@ -44,17 +44,27 @@ const worker = new Worker('task-categorization-queue', async (job) => {
   const db = getDatabase();
   
   try {
-    // Step 1. Fetch cached clients
-    const clientsSnapshot = await db.ref('clients').once('value');
+    // Step 1. Fetch cached clients and memories
+    const [clientsSnapshot, memoriesSnapshot] = await Promise.all([
+      db.ref('clients').once('value'),
+      db.ref('memories').once('value')
+    ]);
+    
     const clientsData = clientsSnapshot.val() || {};
+    const memoriesData = memoriesSnapshot.val() || {};
     
     // Format clients for the prompt
     const clientsList = Object.keys(clientsData).map(id => {
       return { id, name: clientsData[id].name };
     });
+    const memoriesList = Object.values(memoriesData);
 
-    // Step 2. Call DeepSeek API with prompt + clients
+    // Step 2. Call DeepSeek API with prompt + clients + memories
     const systemPrompt = `Bir görev yönetim sistemi için yapay zeka asistanısın. Görevin, kullanıcının girdiği görevi kategorize etmek ve veritabanımızdaki doğru müşteriyle eşleştirmektir. Uygulama dili Türkçedir, bu yüzden tüm metinleri Türkçe üretmelisin.
+    
+    ÖNEMLİ KURALLAR (Geçmiş Düzeltmeler / Memories):
+    ${JSON.stringify(memoriesList)}
+    
     Mevcut müşteri listesi (JSON array):
     ${JSON.stringify(clientsList)}
     
@@ -66,6 +76,7 @@ const worker = new Worker('task-categorization-queue', async (job) => {
       "category": "String (Örn. Donanım, Teslimat, Destek, Yazılım, Satış vb.)",
       "urgency": "String (Düşük, Orta, Yüksek)",
       "matchedClientId": "String (Görev metniyle eşleşen en uygun müşterinin 'id' değeri. Eşleşme yoksa null kullanın)",
+      "clientName": "String (Eğer eşleştiyse müşterinin adı, eşleşmediyse görev metninden çıkardığın yeni müşteri adı)",
       "standardisedTitle": "String (Görev için temiz, profesyonel bir Türkçe başlık)",
       "summary": "String (Görevin 1 cümlelik Türkçe özeti)"
     }`;
@@ -94,14 +105,35 @@ const worker = new Worker('task-categorization-queue', async (job) => {
     const cleanJsonStr = aiContent.replace(/```json/g, '').replace(/```/g, '').trim();
     const structuredData = JSON.parse(cleanJsonStr);
 
-    // Step 3. Update Firebase RTDB with new category and clientId
+    // Step 3. Update Firebase RTDB with new category, client info, and assign task to client
+    let clientId = structuredData.matchedClientId;
+    let clientName = structuredData.clientName;
+    
+    // If no client matched, create a new one dynamically
+    if (!clientId || clientId === 'null' || clientId === '') {
+      const newClientRef = db.ref('clients').push();
+      clientId = newClientRef.key;
+      if (!clientName) clientName = 'Bilinmeyen Müşteri';
+      await newClientRef.set({ name: clientName, createdAt: Date.now() });
+      console.log(`Created new client: ${clientName} (${clientId})`);
+    }
+
+    // Update the original task
     await db.ref(`tasks/${taskId}`).update({
       category: structuredData.category || 'Kategorisiz',
       urgency: structuredData.urgency || 'Orta',
-      clientId: structuredData.matchedClientId || null,
+      clientId: clientId,
+      clientName: clientName,
       standardisedTitle: structuredData.standardisedTitle || title,
       summary: structuredData.summary || '',
       processed: true
+    });
+
+    // Track task under the specific client's node (Client Task History)
+    await db.ref(`clients/${clientId}/tasks/${taskId}`).set({
+      timestamp: Date.now(),
+      title: structuredData.standardisedTitle || title,
+      category: structuredData.category || 'Kategorisiz'
     });
 
     console.log(`Successfully processed and updated task ${taskId}`);
