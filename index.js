@@ -1,4 +1,6 @@
-require('dotenv').config();
+const environment = process.env.NODE_ENV || 'development';
+const envFile = environment === 'production' ? '.env.production' : '.env';
+require('dotenv').config({ path: envFile });
 const express = require('express');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getDatabase } = require('firebase-admin/database');
