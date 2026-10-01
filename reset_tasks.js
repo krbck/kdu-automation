@@ -25,10 +25,16 @@ const db = getDatabase();
     let count = 0;
     
     for (const taskId in tasks) {
-      if (tasks[taskId].processed || tasks[taskId].status) {
-        updates[`${taskId}/processed`] = null; // İşlendi bayrağını kaldır
-        updates[`${taskId}/status`] = null;    // Bekleme veya arşiv durumunu kaldır
-        updates[`${taskId}/learnedRule`] = null; // AI kuralını sıfırla
+      if (tasks[taskId].processed || tasks[taskId].status || tasks[taskId].category) {
+        updates[`${taskId}/processed`] = null;
+        updates[`${taskId}/status`] = null;
+        updates[`${taskId}/learnedRule`] = null;
+        updates[`${taskId}/category`] = null;
+        updates[`${taskId}/urgency`] = null;
+        updates[`${taskId}/clientId`] = null;
+        updates[`${taskId}/clientName`] = null;
+        updates[`${taskId}/standardisedTitle`] = null;
+        updates[`${taskId}/summary`] = null;
         count++;
       }
     }
