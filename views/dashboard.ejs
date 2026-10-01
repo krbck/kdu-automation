@@ -165,6 +165,15 @@
                       <input type="hidden" name="originalTitle" value="<%= task.title %>">
                       <input type="hidden" name="originalBody" value="<%= task.body %>">
                       
+                      <div class="alert alert-secondary text-light mb-3" style="font-size: 0.9em; background-color: rgba(255,255,255,0.05); border-color: #555;">
+                        <strong>Orijinal Müşteri Girdisi:</strong><br>
+                        <%= task.title %><br>
+                        <%= task.body %><hr class="my-2 border-secondary">
+                        <strong>Yapay Zekanın Yaptığı Seçimler:</strong><br>
+                        Kategori: <span class="badge bg-secondary"><%= task.category %></span> | 
+                        Aciliyet: <span class="badge bg-info text-dark"><%= task.urgency %></span>
+                      </div>
+                      
                       <div class="mb-3">
                         <label class="form-label">Yapay Zekaya Ne Söylemek İstersiniz?</label>
                         <textarea class="form-control" name="userFeedback" rows="4" placeholder="Örn: Bu görevin kategorisi Yazılım, aciliyeti Yüksek olmalıydı. Çünkü sunucu hatası çok kritiktir." required></textarea>
