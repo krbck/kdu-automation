@@ -51,20 +51,20 @@ const worker = new Worker('task-categorization-queue', async (job) => {
     });
 
     // Step 2. Call DeepSeek API with prompt + clients
-    const systemPrompt = `You are an AI assistant for a task management system. Your job is to categorize a user task and match it to a specific client from our database.
-    Here is the list of existing clients (JSON array):
+    const systemPrompt = `Bir görev yönetim sistemi için yapay zeka asistanısın. Görevin, kullanıcının girdiği görevi kategorize etmek ve veritabanımızdaki doğru müşteriyle eşleştirmektir. Uygulama dili Türkçedir, bu yüzden tüm metinleri Türkçe üretmelisin.
+    Mevcut müşteri listesi (JSON array):
     ${JSON.stringify(clientsList)}
     
-    Task Title: "${title}"
-    Task Description: "${body}"
+    Görev Başlığı: "${title}"
+    Görev Açıklaması: "${body}"
     
-    Respond ONLY with a valid JSON object (no markdown, no extra text) with the following structure:
+    Lütfen SADECE aşağıdaki yapıda geçerli bir JSON objesi döndür (markdown veya ek metin olmasın):
     {
-      "category": "String (e.g. Hardware, Delivery, Support, Software, Sales)",
-      "urgency": "String (Low, Medium, High)",
-      "matchedClientId": "String (The exact 'id' from the clients list that best matches the task text. If none match, use null)",
-      "standardisedTitle": "String (A clean, professional title for the task)",
-      "summary": "String (A short 1-sentence summary of the task)"
+      "category": "String (Örn. Donanım, Teslimat, Destek, Yazılım, Satış vb.)",
+      "urgency": "String (Düşük, Orta, Yüksek)",
+      "matchedClientId": "String (Görev metniyle eşleşen en uygun müşterinin 'id' değeri. Eşleşme yoksa null kullanın)",
+      "standardisedTitle": "String (Görev için temiz, profesyonel bir Türkçe başlık)",
+      "summary": "String (Görevin 1 cümlelik Türkçe özeti)"
     }`;
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -92,19 +92,19 @@ const worker = new Worker('task-categorization-queue', async (job) => {
     const structuredData = JSON.parse(cleanJsonStr);
 
     // Step 3. Update Firebase RTDB with new category and clientId
-    await db.ref(\`tasks/${taskId}\`).update({
-      category: structuredData.category || 'Uncategorized',
-      urgency: structuredData.urgency || 'Medium',
+    await db.ref(`tasks/${taskId}`).update({
+      category: structuredData.category || 'Kategorisiz',
+      urgency: structuredData.urgency || 'Orta',
       clientId: structuredData.matchedClientId || null,
       standardisedTitle: structuredData.standardisedTitle || title,
       summary: structuredData.summary || '',
       processed: true
     });
 
-    console.log(\`Successfully processed and updated task ${taskId}\`);
+    console.log(`Successfully processed and updated task ${taskId}`);
     return { status: 'success', structuredData };
   } catch (error) {
-    console.error(\`Error processing job ${job.id}:\`, error);
+    console.error(`Error processing job ${job.id}:`, error);
     throw error; // Throwing error tells BullMQ to retry the job
   }
 }, { 
