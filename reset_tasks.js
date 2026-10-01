@@ -25,15 +25,17 @@ const db = getDatabase();
     let count = 0;
     
     for (const taskId in tasks) {
-      if (tasks[taskId].processed) {
+      if (tasks[taskId].processed || tasks[taskId].status) {
         updates[`${taskId}/processed`] = null; // İşlendi bayrağını kaldır
+        updates[`${taskId}/status`] = null;    // Bekleme veya arşiv durumunu kaldır
+        updates[`${taskId}/learnedRule`] = null; // AI kuralını sıfırla
         count++;
       }
     }
     
     if (count > 0) {
       await db.ref('tasks').update(updates);
-      console.log(`Başarılı! Toplam ${count} görevin "işlendi" durumu sıfırlandı.`);
+      console.log(`Başarılı! Toplam ${count} görevin durumu sıfırlandı. Memory (Kurallar) KORUNDU.`);
     } else {
       console.log('Zaten hepsi sıfırlanmış durumda.');
     }
