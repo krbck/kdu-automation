@@ -38,16 +38,75 @@ const worker = new Worker('task-categorization-queue', async (job) => {
   console.log(`Processing job ${job.id} for task: ${job.data.taskId}`);
   
   const { taskId, title, body } = job.data;
+  const db = admin.database();
   
-  // TODO: Step 1. Fetch cached clients
-  // TODO: Step 2. Call DeepSeek API with prompt + clients
-  // TODO: Step 3. Update Firebase RTDB with new category and clientId
-  
-  // Simulated processing delay
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-  
-  console.log(`Finished processing job ${job.id}`);
-  return { status: 'success', matchedClient: 'example_client' };
+  try {
+    // Step 1. Fetch cached clients
+    const clientsSnapshot = await db.ref('clients').once('value');
+    const clientsData = clientsSnapshot.val() || {};
+    
+    // Format clients for the prompt
+    const clientsList = Object.keys(clientsData).map(id => {
+      return { id, name: clientsData[id].name };
+    });
+
+    // Step 2. Call DeepSeek API with prompt + clients
+    const systemPrompt = `You are an AI assistant for a task management system. Your job is to categorize a user task and match it to a specific client from our database.
+    Here is the list of existing clients (JSON array):
+    ${JSON.stringify(clientsList)}
+    
+    Task Title: "${title}"
+    Task Description: "${body}"
+    
+    Respond ONLY with a valid JSON object (no markdown, no extra text) with the following structure:
+    {
+      "category": "String (e.g. Hardware, Delivery, Support, Software, Sales)",
+      "urgency": "String (Low, Medium, High)",
+      "matchedClientId": "String (The exact 'id' from the clients list that best matches the task text. If none match, use null)",
+      "standardisedTitle": "String (A clean, professional title for the task)",
+      "summary": "String (A short 1-sentence summary of the task)"
+    }`;
+
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'system', content: systemPrompt }],
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`DeepSeek API error: ${response.statusText}`);
+    }
+
+    const aiData = await response.json();
+    const aiContent = aiData.choices[0].message.content;
+    
+    // Parse the JSON (handle possible markdown formatting returned by AI)
+    const cleanJsonStr = aiContent.replace(/```json/g, '').replace(/```/g, '').trim();
+    const structuredData = JSON.parse(cleanJsonStr);
+
+    // Step 3. Update Firebase RTDB with new category and clientId
+    await db.ref(\`tasks/${taskId}\`).update({
+      category: structuredData.category || 'Uncategorized',
+      urgency: structuredData.urgency || 'Medium',
+      clientId: structuredData.matchedClientId || null,
+      standardisedTitle: structuredData.standardisedTitle || title,
+      summary: structuredData.summary || '',
+      processed: true
+    });
+
+    console.log(\`Successfully processed and updated task ${taskId}\`);
+    return { status: 'success', structuredData };
+  } catch (error) {
+    console.error(\`Error processing job ${job.id}:\`, error);
+    throw error; // Throwing error tells BullMQ to retry the job
+  }
 }, { 
   connection: redisOptions,
   concurrency: 2 // Process maximum 2 tasks concurrently to avoid hitting rate limits
