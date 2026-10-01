@@ -18,7 +18,12 @@ app.use(express.urlencoded({ extended: true }));
 // 2. Initialize Firebase Admin
 // Make sure to download your service account JSON and set its path in .env
 try {
-  const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './serviceAccountKey.json');
+  let serviceAccount;
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  } else {
+    serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './serviceAccountKey.json');
+  }
   initializeApp({
     credential: cert(serviceAccount),
     databaseURL: process.env.FIREBASE_DATABASE_URL
