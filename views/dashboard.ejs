@@ -30,10 +30,42 @@
                 <strong>Kural:</strong> <%= mem.rule %><br>
                 <small class="text-muted">Sonuç Kategori: <%= mem.correctedCategory %></small>
               </div>
-              <form action="/dashboard/memory/delete" method="POST" style="margin: 0;">
-                <input type="hidden" name="memoryId" value="<%= mem.id %>">
-                <button type="submit" class="btn btn-sm btn-outline-danger">Sil</button>
-              </form>
+              <div class="d-flex gap-2 align-items-center">
+                <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editMemoryModal<%= mem.id %>">Düzenle</button>
+                <form action="/dashboard/memory/delete" method="POST" style="margin: 0;">
+                  <input type="hidden" name="memoryId" value="<%= mem.id %>">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Sil</button>
+                </form>
+              </div>
+
+              <!-- Edit Memory Modal -->
+              <div class="modal fade" id="editMemoryModal<%= mem.id %>" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                  <div class="modal-content bg-dark text-light border-secondary">
+                    <form action="/dashboard/memory/edit" method="POST">
+                      <div class="modal-header border-secondary">
+                        <h5 class="modal-title">Kuralı Düzenle</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body">
+                        <input type="hidden" name="memoryId" value="<%= mem.id %>">
+                        <div class="mb-3">
+                          <label class="form-label">Sonuç Kategori</label>
+                          <input type="text" class="form-control" name="category" value="<%= mem.correctedCategory %>" required>
+                        </div>
+                        <div class="mb-3">
+                          <label class="form-label">Kural Metni</label>
+                          <textarea class="form-control" name="rule" rows="4" required><%= mem.rule %></textarea>
+                        </div>
+                      </div>
+                      <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
             </li>
           <% }) %>
         </ul>

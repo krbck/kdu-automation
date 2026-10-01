@@ -303,6 +303,19 @@ app.post('/dashboard/memory/delete', async (req, res) => {
   res.redirect('/dashboard');
 });
 
+// 9b. Edit Memory
+app.post('/dashboard/memory/edit', async (req, res) => {
+  const { memoryId, rule, category } = req.body;
+  if (memoryId && rule) {
+    await getDatabase().ref(`memories/${memoryId}`).update({ 
+      rule, 
+      correctedCategory: category, 
+      updatedAt: Date.now() 
+    });
+  }
+  res.redirect('/dashboard');
+});
+
 // 10. Archive Task (Hide from processed list)
 app.post('/dashboard/task/archive', async (req, res) => {
   const { taskId } = req.body;
