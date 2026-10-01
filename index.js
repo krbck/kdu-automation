@@ -206,12 +206,13 @@ const setupFirebaseListener = () => {
     if (task && !task.processed) {
       console.log(`New unprocessed task detected: ${taskId}`);
 
-      // Enqueue the task safely
+      // Enqueue the task safely, using jobId to prevent duplicates!
       await taskQueue.add('categorize-task', {
         taskId,
         title: task.title,
         body: task.body
       }, {
+        jobId: taskId, // This is crucial: it prevents the same task from being queued multiple times
         attempts: 3,
         backoff: { type: 'exponential', delay: 1000 }
       });
