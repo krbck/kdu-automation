@@ -61,13 +61,13 @@ const processJob = async (job) => {
 
     // Step 2. Call DeepSeek API with prompt
     let systemPrompt = `Bir görev yönetim sistemi için yapay zeka asistanısın. Görevin, kullanıcının girdiği görevi kategorize etmek ve veritabanımızdaki doğru müşteriyle eşleştirmektir. Uygulama dili Türkçedir.`;
-    
+
     if (userFeedback) {
       systemPrompt += `\n\nDİKKAT! Kullanıcı senin bir önceki kararını beğenmedi ve şu geri bildirimi verdi: "${userFeedback}". 
       Lütfen bu geri bildirimi dikkate alarak görevi YENİDEN değerlendir. 
       Ek olarak, gelecekte benzer bir hatayı tekrar etmemek için kendine bir kural çıkar ve bunu 'learnedRule' alanında (tek cümleyle) belirt.`;
     }
-    
+
     systemPrompt += `
     ÖNEMLİ KURALLAR (Geçmiş Düzeltmeler / Memories):
     ${JSON.stringify(memoriesList)}
@@ -93,7 +93,7 @@ const processJob = async (job) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}` },
       body: JSON.stringify({
-        model: 'deepseek-reasoner',
+        model: 'deepseek-flash',
         messages: [{ role: 'system', content: systemPrompt }],
         temperature: 0.1
       })
@@ -142,7 +142,7 @@ const processJob = async (job) => {
         processed: true,
         status: null
       });
-      
+
       await db.ref(`clients/${clientId}/tasks/${taskId}`).set({
         timestamp: Date.now(),
         title: structuredData.standardisedTitle || title,
@@ -254,21 +254,21 @@ app.get('/dashboard', async (req, res) => {
 app.post('/dashboard/feedback', async (req, res) => {
   const { taskId, userFeedback, originalTitle, originalBody, expectedCategory, expectedUrgency } = req.body;
   if (!taskId || !userFeedback) return res.redirect('/dashboard');
-  
+
   try {
     const db = getDatabase();
-    
+
     const combinedFeedback = `Kullanıcı Notu: ${userFeedback}\nBeklenen Kategori: ${expectedCategory}\nBeklenen Aciliyet: ${expectedUrgency}`;
-    
+
     // Send feedback directly to the independent feedback queue
     await feedbackQueue.add('categorize-task', {
       taskId, title: originalTitle, body: originalBody, userFeedback: combinedFeedback
     }, { attempts: 1 });
-    
+
     // Mark as reprocessing so UI updates
     await db.ref(`tasks/${taskId}`).update({ status: 'reprocessing', processed: null });
   } catch (error) { console.error('Feedback error:', error); }
-  
+
   res.redirect('/dashboard');
 });
 
@@ -277,13 +277,13 @@ app.post('/dashboard/approve', async (req, res) => {
   const { taskId, rule, category, clientId } = req.body;
   try {
     const db = getDatabase();
-    
+
     if (rule && rule.trim() !== '') {
       await db.ref('memories').push({ rule, correctedCategory: category, createdAt: Date.now(), createdBy: 'Admin' });
     }
-    
+
     await db.ref(`tasks/${taskId}`).update({ status: null, processed: true, learnedRule: null });
-    
+
     if (clientId) {
       const taskSnap = await db.ref(`tasks/${taskId}`).once('value');
       const task = taskSnap.val();
@@ -292,6 +292,32 @@ app.post('/dashboard/approve', async (req, res) => {
       }
     }
   } catch (error) { console.error('Approval error:', error); }
+
+  res.redirect('/dashboard');
+});
+
+// 8b. Handle Reject (User rejects AI's learned rule)
+app.post('/dashboard/reject', async (req, res) => {
+  const { taskId, clientId } = req.body;
+  try {
+    const db = getDatabase();
+    
+    // Just mark as processed without saving the rule to memories
+    await db.ref(`tasks/${taskId}`).update({ status: null, processed: true, learnedRule: null });
+    
+    // Still ensure it goes to client's history
+    if (clientId) {
+      const taskSnap = await db.ref(`tasks/${taskId}`).once('value');
+      const task = taskSnap.val();
+      if (task) {
+        await db.ref(`clients/${clientId}/tasks/${taskId}`).set({
+          timestamp: Date.now(),
+          title: task.standardisedTitle || task.title,
+          category: task.category || 'Kategorisiz'
+        });
+      }
+    }
+  } catch (error) { console.error('Reject error:', error); }
   
   res.redirect('/dashboard');
 });
@@ -307,10 +333,10 @@ app.post('/dashboard/memory/delete', async (req, res) => {
 app.post('/dashboard/memory/edit', async (req, res) => {
   const { memoryId, rule, category } = req.body;
   if (memoryId && rule) {
-    await getDatabase().ref(`memories/${memoryId}`).update({ 
-      rule, 
-      correctedCategory: category, 
-      updatedAt: Date.now() 
+    await getDatabase().ref(`memories/${memoryId}`).update({
+      rule,
+      correctedCategory: category,
+      updatedAt: Date.now()
     });
   }
   res.redirect('/dashboard');
