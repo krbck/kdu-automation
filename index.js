@@ -37,9 +37,10 @@ const redisOptions = {
 
 // Create the Job Queue
 const taskQueue = new Queue('task-categorization-queue', { connection: redisOptions });
+const feedbackQueue = new Queue('feedback-queue', { connection: redisOptions });
 
-// Create the Worker (This processes the jobs)
-const worker = new Worker('task-categorization-queue', async (job) => {
+// Create the Worker Logic
+const processJob = async (job) => {
   console.log(`Processing job ${job.id} for task: ${job.data.taskId}`);
 
   const { taskId, title, body, userFeedback } = job.data;
@@ -154,17 +155,25 @@ const worker = new Worker('task-categorization-queue', async (job) => {
     console.error(`Error processing job ${job.id}:`, error);
     throw error; // Throwing error tells BullMQ to retry the job
   }
-}, {
+};
+
+const worker = new Worker('task-categorization-queue', processJob, {
   connection: redisOptions,
-  concurrency: 2 // Process maximum 2 tasks concurrently to avoid hitting rate limits
+  concurrency: 2
 });
 
-worker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed successfully`);
+const feedbackWorker = new Worker('feedback-queue', processJob, {
+  connection: redisOptions,
+  concurrency: 2
 });
 
-worker.on('failed', (job, err) => {
-  console.error(`Job ${job.id} failed with error:`, err);
+[worker, feedbackWorker].forEach(w => {
+  w.on('completed', (job) => {
+    console.log(`Job ${job.id} completed successfully`);
+  });
+  w.on('failed', (job, err) => {
+    console.error(`Job ${job.id} failed with error:`, err);
+  });
 });
 
 // 4. Setup Bull Board (Dashboard UI for BullMQ)
@@ -172,7 +181,7 @@ const serverAdapter = new ExpressAdapter();
 serverAdapter.setBasePath('/admin/queues');
 
 const { addQueue, removeQueue, setQueues, replaceQueues } = createBullBoard({
-  queues: [new BullMQAdapter(taskQueue)],
+  queues: [new BullMQAdapter(taskQueue), new BullMQAdapter(feedbackQueue)],
   serverAdapter: serverAdapter,
 });
 
@@ -250,10 +259,10 @@ app.post('/dashboard/feedback', async (req, res) => {
     
     const combinedFeedback = `Kullanıcı Notu: ${userFeedback}\nBeklenen Kategori: ${expectedCategory}\nBeklenen Aciliyet: ${expectedUrgency}`;
     
-    // Re-enqueue the task with user feedback and highest priority
-    await taskQueue.add('categorize-task', {
+    // Send feedback directly to the independent feedback queue
+    await feedbackQueue.add('categorize-task', {
       taskId, title: originalTitle, body: originalBody, userFeedback: combinedFeedback
-    }, { attempts: 1, priority: 1 });
+    }, { attempts: 1 });
     
     // Mark as reprocessing so UI updates
     await db.ref(`tasks/${taskId}`).update({ status: 'reprocessing', processed: null });
