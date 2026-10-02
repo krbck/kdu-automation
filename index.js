@@ -115,6 +115,14 @@ const processJob = async (job) => {
     let clientId = structuredData.matchedClientId;
     let clientName = structuredData.clientName;
 
+    // AI'ın döndürdüğü clientId gerçekten veritabanımızda var mı kontrol et (Halüsinasyon koruması)
+    if (clientId && clientId !== 'null' && clientId !== '') {
+      if (!clientsData[clientId]) {
+        console.log(`Uyarı: Yapay zeka olmayan bir clientId döndürdü (${clientId}). Yeni müşteri oluşturulacak.`);
+        clientId = null; // Yoksa null yap ki aşağıda yeni kayıt oluşsun
+      }
+    }
+
     if (!clientId || clientId === 'null' || clientId === '') {
       const newClientRef = db.ref('clients').push();
       clientId = newClientRef.key;
