@@ -8,7 +8,7 @@ const { getDatabase } = require('firebase-admin/database');
 // Dry Run (Test Modu) bayrağı. 
 // Başlangıçta "true" olarak ayarladık ki sadece ekrana yazsın, hemen veritabanını değiştirmesin.
 // Sonuçları konsolda inceleyip doğru bulduğunuzda bu değeri "false" yapıp scripti tekrar çalıştırın.
-const DRY_RUN = true;
+const DRY_RUN = false;
 
 try {
   let serviceAccount;
@@ -44,8 +44,8 @@ async function fixBranches() {
     // Sadece adı olan geçerli müşterileri listeye alıyoruz
     const clientsList = Object.keys(data)
       .filter(id => data[id] && data[id].name)
-      .map(id => ({ 
-        id, 
+      .map(id => ({
+        id,
         name: data[id].name,
         parentId: data[id].parentId || null
       }));
@@ -66,9 +66,9 @@ ${JSON.stringify(clientsList, null, 2)}`;
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}` 
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
       },
       body: JSON.stringify({
         model: 'deepseek-flash',
@@ -78,65 +78,65 @@ ${JSON.stringify(clientsList, null, 2)}`;
     });
 
     if (!response.ok) {
-        throw new Error(`DeepSeek API Hatası: ${response.status} ${response.statusText}`);
+      throw new Error(`DeepSeek API Hatası: ${response.status} ${response.statusText}`);
     }
 
     const aiData = await response.json();
     const aiContent = aiData.choices[0].message.content;
     const cleanJsonStr = aiContent.replace(/```json/g, '').replace(/```/g, '').trim();
-    
+
     let matches = [];
     try {
-        matches = JSON.parse(cleanJsonStr);
+      matches = JSON.parse(cleanJsonStr);
     } catch (parseError) {
-        console.error("Yapay zekadan dönen veri JSON formatına çevrilemedi:\n", cleanJsonStr);
-        process.exit(1);
+      console.error("Yapay zekadan dönen veri JSON formatına çevrilemedi:\n", cleanJsonStr);
+      process.exit(1);
     }
 
     console.log(`\nYapay zeka ${matches.length} adet şube-ana firma ilişkisi tespit etti.`);
-    
+
     if (matches.length === 0) {
-        console.log("Herhangi bir ilişki bulunamadı. İşlem tamamlandı.");
-        process.exit(0);
+      console.log("Herhangi bir ilişki bulunamadı. İşlem tamamlandı.");
+      process.exit(0);
     }
 
     console.log("\n--- TESPİT EDİLEN İLİŞKİLER ---");
     const updates = {};
 
     matches.forEach(match => {
-        const branch = clientsList.find(c => c.id === match.branchId);
-        const parent = clientsList.find(c => c.id === match.parentId);
-        
-        if (branch && parent) {
-            console.log(`[ŞUBE]: ${branch.name}  --->  [BAĞLANACAĞI ANA FİRMA]: ${parent.name}`);
-            
-            // Eğer daha önceden bu parentId atanmamışsa güncellenecekler listesine ekle
-            if (data[match.branchId].parentId !== match.parentId) {
-                updates[`${match.branchId}/parentId`] = match.parentId;
-            }
-        } else {
-             console.log(`Uyarı: Hatalı ID eşleşmesi yapıldı. Yapay zeka halüsinasyonu olabilir. BranchId: ${match.branchId}, ParentId: ${match.parentId}`);
+      const branch = clientsList.find(c => c.id === match.branchId);
+      const parent = clientsList.find(c => c.id === match.parentId);
+
+      if (branch && parent) {
+        console.log(`[ŞUBE]: ${branch.name}  --->  [BAĞLANACAĞI ANA FİRMA]: ${parent.name}`);
+
+        // Eğer daha önceden bu parentId atanmamışsa güncellenecekler listesine ekle
+        if (data[match.branchId].parentId !== match.parentId) {
+          updates[`${match.branchId}/parentId`] = match.parentId;
         }
+      } else {
+        console.log(`Uyarı: Hatalı ID eşleşmesi yapıldı. Yapay zeka halüsinasyonu olabilir. BranchId: ${match.branchId}, ParentId: ${match.parentId}`);
+      }
     });
 
     if (DRY_RUN) {
-        console.log("\n=======================================================");
-        console.log("⚠️ TEST MODU (DRY_RUN) AKTİF: Veritabanına hiçbir şey YAZILMADI.");
-        console.log("Yukarıdaki eşleşmelerin doğru olduğunu düşünüyorsanız,");
-        console.log("fix-branches.js dosyasının içindeki 'const DRY_RUN = true;'");
-        console.log("satırını 'false' olarak değiştirip scripti tekrar çalıştırın.");
-        console.log("=======================================================");
+      console.log("\n=======================================================");
+      console.log("⚠️ TEST MODU (DRY_RUN) AKTİF: Veritabanına hiçbir şey YAZILMADI.");
+      console.log("Yukarıdaki eşleşmelerin doğru olduğunu düşünüyorsanız,");
+      console.log("fix-branches.js dosyasının içindeki 'const DRY_RUN = true;'");
+      console.log("satırını 'false' olarak değiştirip scripti tekrar çalıştırın.");
+      console.log("=======================================================");
     } else {
-        const updateKeys = Object.keys(updates);
-        if (updateKeys.length > 0) {
-            console.log(`\nVeritabanı kalıcı olarak güncelleniyor (${updateKeys.length} adet kayıt)...`);
-            await ref.update(updates);
-            console.log("✅ İşlem başarıyla tamamlandı! Şubeler ana firmalarına bağlandı.");
-        } else {
-            console.log("\nVeritabanında güncellenecek yeni bir kayıt bulunamadı (Zaten hepsi bu şekilde bağlı).");
-        }
+      const updateKeys = Object.keys(updates);
+      if (updateKeys.length > 0) {
+        console.log(`\nVeritabanı kalıcı olarak güncelleniyor (${updateKeys.length} adet kayıt)...`);
+        await ref.update(updates);
+        console.log("✅ İşlem başarıyla tamamlandı! Şubeler ana firmalarına bağlandı.");
+      } else {
+        console.log("\nVeritabanında güncellenecek yeni bir kayıt bulunamadı (Zaten hepsi bu şekilde bağlı).");
+      }
     }
-    
+
     process.exit(0);
   } catch (error) {
     console.error('\nHata oluştu:', error);

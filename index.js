@@ -408,6 +408,28 @@ app.post('/dashboard/client/alias', async (req, res) => {
   res.redirect('/dashboard');
 });
 
+// 12. Delete Alias from Client
+app.post('/dashboard/client/alias/delete', async (req, res) => {
+  const { clientId, aliasName } = req.body;
+  if (clientId && aliasName) {
+    try {
+      const db = getDatabase();
+      const clientRef = db.ref(`clients/${clientId}`);
+      const snap = await clientRef.once('value');
+      const clientData = snap.val();
+      if (clientData && clientData.aliases) {
+        const currentAliases = clientData.aliases;
+        const index = currentAliases.indexOf(aliasName);
+        if (index > -1) {
+          currentAliases.splice(index, 1);
+          await clientRef.update({ aliases: currentAliases });
+        }
+      }
+    } catch (err) { console.error('Alias silme hatası:', err); }
+  }
+  res.redirect('/dashboard');
+});
+
 // Start the Express Server
 app.listen(port, () => {
   console.log(`KDU Automation App running on port ${port}`);

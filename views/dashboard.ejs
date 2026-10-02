@@ -15,7 +15,7 @@
   <h1 class="mb-4">KDU Automation Dashboard</h1>
 
   <!-- Memories Section -->
-  <div class="card mb-4">
+  <div class="card mb-4" id="memories-section">
     <div class="card-header bg-primary text-white border-bottom border-secondary">
       <h5 class="mb-0">🧠 Aktif Kurallar (Memories / RLHF)</h5>
     </div>
@@ -74,7 +74,7 @@
   </div>
 
   <!-- Awaiting Approval Section -->
-  <div class="card mb-4 border-warning">
+  <div class="card mb-4 border-warning" id="awaiting-section">
     <div class="card-header bg-warning text-dark border-bottom border-secondary">
       <h5 class="mb-0">⏳ Onay Bekleyenler (Düzeltme Sonrası AI Çıktısı)</h5>
     </div>
@@ -139,7 +139,7 @@
   </div>
 
   <!-- Tasks Section -->
-  <div class="card shadow-sm">
+  <div class="card shadow-sm" id="tasks-section">
     <div class="card-header bg-dark text-white border-bottom border-secondary">
       <h5 class="mb-0">✅ Son İşlenen Görevler (Canlı)</h5>
     </div>
@@ -250,7 +250,7 @@
   </div>
 
   <!-- Clients & Aliases Section -->
-  <div class="card shadow-sm mt-4 border-info">
+  <div class="card shadow-sm mt-4 border-info" id="clients-section">
     <div class="card-header bg-info text-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
       <h5 class="mb-0">🏢 Müşteriler ve Eş Anlamlı (Alias) Yönetimi</h5>
     </div>
@@ -272,9 +272,18 @@
                 <td class="align-middle"><strong><%= client.name %></strong></td>
                 <td class="align-middle">
                   <% if (client.aliases && client.aliases.length > 0) { %>
-                    <% client.aliases.forEach(alias => { %>
-                      <span class="badge bg-secondary me-1"><%= alias %></span>
-                    <% }) %>
+                    <div class="d-flex flex-wrap gap-1">
+                      <% client.aliases.forEach(alias => { %>
+                        <form action="/dashboard/client/alias/delete" method="POST" class="m-0 p-0 d-inline-block">
+                          <input type="hidden" name="clientId" value="<%= clientId %>">
+                          <input type="hidden" name="aliasName" value="<%= alias %>">
+                          <span class="badge bg-secondary d-flex align-items-center gap-1">
+                            <%= alias %>
+                            <button type="submit" class="btn-close btn-close-white m-0 p-0" style="font-size: 0.45rem;" title="Aliası Sil"></button>
+                          </span>
+                        </form>
+                      <% }) %>
+                    </div>
                   <% } else { %>
                     <span class="text-muted small">Yok</span>
                   <% } %>
@@ -297,11 +306,24 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // Smart auto-refresh: only refresh if no modal is currently open
+  // Smart auto-refresh: only refresh if no modal is currently open and user is not typing
   setInterval(() => {
     const isModalOpen = document.querySelector('.modal.show');
-    if (!isModalOpen) {
-      window.location.reload();
+    const isFocused = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+    
+    if (!isModalOpen && !isFocused) {
+      fetch('/dashboard')
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          
+          document.getElementById('memories-section').innerHTML = doc.getElementById('memories-section').innerHTML;
+          document.getElementById('awaiting-section').innerHTML = doc.getElementById('awaiting-section').innerHTML;
+          document.getElementById('tasks-section').innerHTML = doc.getElementById('tasks-section').innerHTML;
+          document.getElementById('clients-section').innerHTML = doc.getElementById('clients-section').innerHTML;
+        })
+        .catch(err => console.error('Auto-refresh error:', err));
     }
   }, 10000);
 
