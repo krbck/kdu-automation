@@ -61,7 +61,11 @@ const processJob = async (job) => {
     const clientsData = clientsSnapshot.val() || {};
     const memoriesData = memoriesSnapshot.val() || {};
 
-    const clientsList = Object.keys(clientsData).map(id => ({ id, name: clientsData[id].name }));
+    const clientsList = Object.keys(clientsData).map(id => ({ 
+      id, 
+      name: clientsData[id].name,
+      aliases: clientsData[id].aliases || []
+    }));
     const memoriesList = Object.values(memoriesData);
 
     // Step 2. Call DeepSeek API with prompt
@@ -80,6 +84,12 @@ const processJob = async (job) => {
     Mevcut müşteri listesi (JSON array):
     ${JSON.stringify(clientsList)}
     
+    EŞ ANLAMLI (ALIAS) MANTIĞI:
+    Müşteri listesindeki "aliases" (diğer isimler) dizisine dikkat et. Eğer görevdeki firma adı, bir müşterinin "aliases" listesinde varsa, KESİNLİKLE yeni kayıt oluşturma. "matchedClientId" olarak o müşterinin ID'sini kullan.
+    
+    ŞUBE (BRANCH) MANTIĞI:
+    Eğer görevdeki müşteri, mevcut müşteri listesinde var olan bir ana firmanın farklı bir şubesiyse (Örn: Ana firma "K.KAYA", gelen firma "K.KAYA ATAŞEHİR"), yeni bir kayıt oluşturmalısın (matchedClientId: null). Ancak, bu yeni şubenin ana firmaya bağlı olduğunu belirtmek için ana firmanın ID'sini "parentId" olarak döndürmelisin. Tamamen yeni ve bağımsız bir firmaysa "parentId": null olmalıdır.
+    
     Görev Başlığı: "${title}"
     Görev Açıklaması: "${body}"
     
@@ -89,6 +99,7 @@ const processJob = async (job) => {
       "urgency": "String (Düşük, Orta, Yüksek)",
       "matchedClientId": "String (Eşleşme yoksa null)",
       "clientName": "String (Eşleştiyse adı, yoksa yeni isim)",
+      "parentId": "String (Eğer yeni bir şubeyse ana firmanın ID'si, yoksa null)",
       "standardisedTitle": "String",
       "summary": "String"
       ${userFeedback ? ',"learnedRule": "String (Bu hatadan öğrendiğin kural)"' : ''}
@@ -127,7 +138,19 @@ const processJob = async (job) => {
       const newClientRef = db.ref('clients').push();
       clientId = newClientRef.key;
       if (!clientName) clientName = 'Bilinmeyen Müşteri';
-      await newClientRef.set({ name: clientName, createdAt: Date.now() });
+      
+      const newClientData = { name: clientName, createdAt: Date.now() };
+      
+      if (structuredData.parentId && structuredData.parentId !== 'null' && structuredData.parentId !== '') {
+        // AI halüsinasyon koruması: parentId gerçekten mevcut mu?
+        if (clientsData[structuredData.parentId]) {
+          newClientData.parentId = structuredData.parentId;
+        } else {
+          console.log(`Uyarı: Yapay zeka olmayan bir parentId döndürdü (${structuredData.parentId}). parentId eklenmeyecek.`);
+        }
+      }
+      
+      await newClientRef.set(newClientData);
     }
 
     if (userFeedback) {
@@ -360,6 +383,27 @@ app.post('/dashboard/task/archive', async (req, res) => {
   const { taskId } = req.body;
   if (taskId) {
     await getDatabase().ref(`tasks/${taskId}`).update({ processed: null, status: 'archived' });
+  }
+  res.redirect('/dashboard');
+});
+
+// 11. Add Alias to Client
+app.post('/dashboard/client/alias', async (req, res) => {
+  const { clientId, aliasName } = req.body;
+  if (clientId && aliasName) {
+    try {
+      const db = getDatabase();
+      const clientRef = db.ref(`clients/${clientId}`);
+      const snap = await clientRef.once('value');
+      const clientData = snap.val();
+      if (clientData) {
+        const currentAliases = clientData.aliases || [];
+        if (!currentAliases.includes(aliasName.trim())) {
+          currentAliases.push(aliasName.trim());
+          await clientRef.update({ aliases: currentAliases });
+        }
+      }
+    } catch (err) { console.error('Alias ekleme hatası:', err); }
   }
   res.redirect('/dashboard');
 });
