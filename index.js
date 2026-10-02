@@ -115,8 +115,7 @@ const processJob = async (job) => {
       "matchedClientId": "String (Eşleşme yoksa null)",
       "clientName": "String (Eşleştiyse adı, yoksa yeni isim)",
       "parentId": "String (Eğer yeni bir şubeyse ana firmanın ID'si, yoksa null)",
-      "standardisedTitle": "String",
-      "summary": "String"
+      "standardisedTitle": "String"
       ${userFeedback ? ',"learnedRule": "String (Bu hatadan öğrendiğin kural)"' : ''}
     }`;
 
@@ -176,7 +175,6 @@ const processJob = async (job) => {
         clientId: clientId,
         clientName: clientName,
         standardisedTitle: structuredData.standardisedTitle || title,
-        summary: structuredData.summary || '',
         learnedRule: structuredData.learnedRule || '',
         status: 'awaiting_approval'
       });
@@ -189,7 +187,6 @@ const processJob = async (job) => {
         clientId: clientId,
         clientName: clientName,
         standardisedTitle: structuredData.standardisedTitle || title,
-        summary: structuredData.summary || '',
         processed: true,
         status: null
       });
