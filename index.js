@@ -33,6 +33,26 @@ try {
   console.error('Failed to initialize Firebase Admin. Check serviceAccountKey.json path and .env variables.', error.message);
 }
 
+// Initialize in-memory cache for frequently accessed collections to save bandwidth
+let cachedClients = {};
+let cachedMemories = {};
+
+const initCache = () => {
+  if (!getApps().length) return;
+  const db = getDatabase();
+  console.log('Starting in-memory cache sync for clients and memories...');
+  
+  db.ref('clients').on('value', (snap) => {
+    cachedClients = snap.val() || {};
+  });
+  
+  db.ref('memories').on('value', (snap) => {
+    cachedMemories = snap.val() || {};
+  });
+};
+
+initCache();
+
 // 3. Initialize BullMQ and Redis Connection
 const redisOptions = {
   host: process.env.REDIS_HOST || 'localhost',
@@ -52,14 +72,9 @@ const processJob = async (job) => {
   const db = getDatabase();
 
   try {
-    // Step 1. Fetch cached clients and memories
-    const [clientsSnapshot, memoriesSnapshot] = await Promise.all([
-      db.ref('clients').once('value'),
-      db.ref('memories').once('value')
-    ]);
-
-    const clientsData = clientsSnapshot.val() || {};
-    const memoriesData = memoriesSnapshot.val() || {};
+    // Step 1. Use cached clients and memories instead of fetching from RTDB on every job
+    const clientsData = cachedClients;
+    const memoriesData = cachedMemories;
 
     const clientsList = Object.keys(clientsData).map(id => ({ 
       id, 
@@ -264,17 +279,15 @@ app.get('/dashboard', async (req, res) => {
   const db = getDatabase();
 
   try {
-    const [tasksSnap, awaitingSnap, clientsSnap, memSnap] = await Promise.all([
+    const [tasksSnap, awaitingSnap] = await Promise.all([
       db.ref('tasks').orderByChild('processed').equalTo(true).limitToLast(100).once('value'),
-      db.ref('tasks').orderByChild('status').equalTo('awaiting_approval').once('value'),
-      db.ref('clients').once('value'),
-      db.ref('memories').once('value')
+      db.ref('tasks').orderByChild('status').equalTo('awaiting_approval').once('value')
     ]);
 
     const tasks = tasksSnap.val() || {};
     const awaitingTasks = awaitingSnap.val() || {};
-    const clients = clientsSnap.val() || {};
-    const memories = memSnap.val() || {};
+    const clients = cachedClients;
+    const memories = cachedMemories;
 
     const tasksArray = Object.keys(tasks).map(k => ({ id: k, ...tasks[k] })).reverse();
     const awaitingArray = Object.keys(awaitingTasks).map(k => ({ id: k, ...awaitingTasks[k] })).reverse();
