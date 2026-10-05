@@ -270,6 +270,62 @@ const setupFirebaseListener = () => {
 
 setupFirebaseListener();
 
+// 5b. Admin Requests Listener (For mobile app syncing)
+const setupAdminRequestsListener = () => {
+  if (!getApps().length) return;
+  const db = getDatabase();
+  const requestsRef = db.ref("admin_requests");
+
+  console.log('Starting Firebase RTDB listener for admin_requests...');
+
+  // 'pending' olan yeni istekleri dinle
+  requestsRef.orderByChild("status").equalTo("pending").on("child_added", async (snapshot) => {
+    const reqId = snapshot.key;
+    const data = snapshot.val(); // İçinde action, table, recordKey, newData var
+
+    if (!data || !data.action || !data.table || !data.recordKey) {
+      console.log(`Geçersiz admin_request silindi: ${reqId}`);
+      if (reqId) await requestsRef.child(reqId).remove();
+      return;
+    }
+    
+    const targetRef = db.ref(`${data.table}/${data.recordKey}`);
+    
+    try {
+      if (data.action === "UPDATE_RECORD") {
+        // Veritabanındaki asıl tabloyu güncelle
+        const updatedData = data.newData || {};
+        
+        // UID alanının kesinlikle değiştirilmesini engelle (güvenlik)
+        Object.keys(updatedData).forEach(key => {
+          if (key.toLowerCase() === 'uid') {
+            delete updatedData[key];
+          }
+        });
+
+        if (Object.keys(updatedData).length > 0) {
+          await targetRef.update(updatedData);
+          console.log(`Güncellendi: ${data.table}/${data.recordKey}`);
+        } else {
+          console.log(`Güncellenecek veri yok (sadece UID gönderilmiş olabilir): ${data.table}/${data.recordKey}`);
+        }
+      } 
+      else if (data.action === "DELETE_RECORD") {
+        // Veritabanındaki asıl tablodan sil
+        await targetRef.remove();
+        console.log(`Silindi: ${data.table}/${data.recordKey}`);
+      }
+      
+      // İşlem bitince isteği kuyruktan (admin_requests'ten) sil
+      await requestsRef.child(reqId).remove();
+    } catch (error) {
+      console.error(`Admin request işlenirken hata oluştu (${reqId}):`, error);
+    }
+  });
+};
+
+setupAdminRequestsListener();
+
 // 6. Web Dashboard Route
 app.get('/dashboard', async (req, res) => {
   if (!getApps().length) return res.send('Firebase not initialized');
