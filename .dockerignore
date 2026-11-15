@@ -1,0 +1,6 @@
+# Never in the image: credentials (Firebase key, env files), the git dir (actions/checkout
+# keeps the job token in .git/config) and host node_modules (npm ci builds its own).
+serviceAccountKey.json
+.env*
+node_modules
+.git
