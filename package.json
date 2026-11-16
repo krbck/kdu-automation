@@ -10,9 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@bull-board/api": "^9.13.0",
-    "@bull-board/express": "^9.13.0",
-    "bullmq": "^6.7.5",
+    "@bull-board/api": "^9.13.1",
+    "@bull-board/express": "^9.13.1",
+    "bullmq": "^6.7.6",
     "dotenv": "^18.0.10",
     "ejs": "^6.0.1",
     "express": "^5.2.1",
